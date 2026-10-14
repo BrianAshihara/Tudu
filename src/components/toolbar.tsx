@@ -1,8 +1,20 @@
 import { forwardRef } from "react"
-import { Columns3, List, Plus, Search, X } from "lucide-react"
+import { Columns3, List, ListFilter, Plus, Search, X } from "lucide-react"
 
+import { PriorityIcon } from "@/components/priority"
 import { SegmentedControl } from "@/components/segmented-control"
-import type { ViewMode } from "@/lib/types"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { PRIORITY_LABEL } from "@/lib/meta"
+import { PRIORITIES, type Priority, type ViewMode } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 export const Toolbar = forwardRef<
@@ -15,9 +27,16 @@ export const Toolbar = forwardRef<
     onViewChange: (view: ViewMode) => void
     search: string
     onSearchChange: (search: string) => void
+    priorities: Priority[]
+    onPrioritiesChange: (priorities: Priority[]) => void
     onNewTask: () => void
   }
->(function Toolbar({ title, subtitle, reserveControls, view, onViewChange, search, onSearchChange, onNewTask }, searchRef) {
+>(function Toolbar(
+  { title, subtitle, reserveControls, view, onViewChange, search, onSearchChange, priorities, onPrioritiesChange, onNewTask },
+  searchRef,
+) {
+  const filtering = priorities.length > 0
+
   return (
     <header
       data-tauri-drag-region
@@ -47,6 +66,48 @@ export const Toolbar = forwardRef<
           { value: "board", label: <Columns3 className="size-3.5" />, title: "Board" },
         ]}
       />
+
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          title="Filter by priority"
+          className={cn(
+            "flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium transition-colors data-popup-open:bg-accent",
+            filtering
+              ? "bg-primary/12 text-primary hover:bg-primary/18"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          )}
+        >
+          <ListFilter className="size-3.5" />
+          {filtering && (
+            <span className="flex h-4 min-w-4 animate-pop items-center justify-center rounded-full bg-primary px-1 text-[10px] text-primary-foreground tabular-nums">
+              {priorities.length}
+            </span>
+          )}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-44" align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Priority</DropdownMenuLabel>
+            {[...PRIORITIES].reverse().map((priority) => (
+              <DropdownMenuCheckboxItem
+                key={priority}
+                checked={priorities.includes(priority)}
+                onCheckedChange={(checked) =>
+                  onPrioritiesChange(checked ? [...priorities, priority] : priorities.filter((item) => item !== priority))
+                }
+              >
+                <PriorityIcon priority={priority} className="size-3.5" />
+                {PRIORITY_LABEL[priority]}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuGroup>
+          {filtering && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onPrioritiesChange([])}>Clear filter</DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <label className="flex h-7 w-52 items-center gap-1.5 rounded-md bg-black/5 px-2 text-muted-foreground focus-within:ring-3 focus-within:ring-ring/40 dark:bg-white/8">
         <Search className="size-3.5 shrink-0" />

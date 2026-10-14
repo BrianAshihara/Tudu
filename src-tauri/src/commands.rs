@@ -41,6 +41,11 @@ pub fn delete_task(db: State<'_, Database>, id: i64) -> Result<()> {
 }
 
 #[tauri::command]
+pub fn delete_tasks(db: State<'_, Database>, ids: Vec<i64>) -> Result<usize> {
+    db::delete_tasks(&mut *db.conn()?, &ids)
+}
+
+#[tauri::command]
 pub fn set_task_tags(db: State<'_, Database>, task_id: i64, tag_ids: Vec<i64>) -> Result<Task> {
     db::set_task_tags(&mut *db.conn()?, task_id, &tag_ids)
 }

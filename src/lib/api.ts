@@ -9,6 +9,7 @@ export const api = {
   moveTask: (id: number, status: Status, position: number) =>
     invoke<Task>("move_task", { id, status, position }),
   deleteTask: (id: number) => invoke<void>("delete_task", { id }),
+  deleteTasks: (ids: number[]) => invoke<number>("delete_tasks", { ids }),
   setTaskTags: (taskId: number, tagIds: number[]) =>
     invoke<Task>("set_task_tags", { taskId, tagIds }),
   listTags: () => invoke<Tag[]>("list_tags"),

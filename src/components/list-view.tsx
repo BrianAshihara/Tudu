@@ -1,6 +1,8 @@
 import { useState } from "react"
-import { ChevronDown, ChevronRight, Clock, FileText, Pause, Play, Plus, RotateCcw, Tag as TagIcon } from "lucide-react"
+import { ChevronDown, ChevronRight, Clock, FileText, Plus, Tag as TagIcon } from "lucide-react"
 
+import { ClearDoneButton } from "@/components/clear-done-button"
+import { PriorityChip, PriorityPicker } from "@/components/priority"
 import { StatusButton, StatusIcon } from "@/components/status-icon"
 import { TagChip, TagDot } from "@/components/tag-pill"
 import { TaskMenu } from "@/components/task-menu"
@@ -12,20 +14,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { formatRelative } from "@/lib/format"
-import { STATUS_LABEL } from "@/lib/meta"
-import type { Status, Tag, Task } from "@/lib/types"
+import { PRIORITY_RANK, STATUS_LABEL } from "@/lib/meta"
+import type { Priority, Status, Tag, Task } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { useTudu } from "@/store/tudu-store"
 
 const GROUP_ORDER: Status[] = ["in_progress", "todo", "done"]
 
 const today = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" })
-
-const QUICK_ACTION: Record<Status, { next: Status; label: string; icon: React.ReactNode }> = {
-  todo: { next: "in_progress", label: "Start", icon: <Play className="size-3.5 translate-x-px" /> },
-  in_progress: { next: "todo", label: "Pause", icon: <Pause className="size-3.5" /> },
-  done: { next: "todo", label: "Reopen", icon: <RotateCcw className="size-3.5" /> },
-}
 
 const pickerClass =
   "flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent data-popup-open:bg-accent"
@@ -35,17 +31,19 @@ function Composer({ defaults }: { defaults: { status?: Status; tagIds?: number[]
   const [title, setTitle] = useState("")
   const [status, setStatus] = useState<Status>(defaults.status ?? "todo")
   const [tagId, setTagId] = useState<number | null>(defaults.tagIds?.[0] ?? null)
+  const [priority, setPriority] = useState<Priority>("normal")
   const tag = tags.find((item) => item.id === tagId)
 
   const submit = async () => {
     const trimmed = title.trim()
     if (!trimmed) return
     setTitle("")
-    await createTask({ title: trimmed, status, tagIds: tag ? [tag.id] : undefined })
+    setPriority("normal")
+    await createTask({ title: trimmed, status, priority, tagIds: tag ? [tag.id] : undefined })
   }
 
   return (
-    <div className="@container flex items-center gap-2 rounded-2xl border border-border bg-card p-2 pl-2.5 shadow-[0_1px_2px_rgb(0_0_0/0.04)]">
+    <div className="@container flex items-center gap-2 rounded-2xl border border-border bg-card p-2 pl-2.5 shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition-[border-color,box-shadow] duration-200 focus-within:border-primary/40 focus-within:shadow-[0_0_0_3px_rgb(0_122_255/0.1)]">
       <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary">
         <Plus className="size-4" strokeWidth={2.5} />
       </span>
@@ -81,6 +79,13 @@ function Composer({ defaults }: { defaults: { status?: Status; tagIds?: number[]
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <PriorityPicker
+        value={priority}
+        onChange={setPriority}
+        className={pickerClass}
+        labelClassName="hidden @lg:inline"
+      />
+
       <DropdownMenu>
         <DropdownMenuTrigger className={cn(pickerClass, "max-w-36")}>
           {tag ? <TagDot tag={tag} className="size-2" /> : <TagIcon className="size-3.5 text-muted-foreground" />}
@@ -107,7 +112,7 @@ function Composer({ defaults }: { defaults: { status?: Status; tagIds?: number[]
         type="button"
         onClick={submit}
         disabled={!title.trim()}
-        className="h-8 rounded-lg bg-primary px-3.5 text-[12.5px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+        className="h-8 rounded-lg bg-primary px-3.5 text-[12.5px] font-semibold text-primary-foreground transition-[opacity,transform] duration-150 hover:opacity-90 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
       >
         Add
       </button>
@@ -159,7 +164,6 @@ function TaskRow({
 }) {
   const { updateTask } = useTudu()
   const done = task.status === "done"
-  const action = QUICK_ACTION[task.status]
 
   return (
     <div
@@ -168,20 +172,21 @@ function TaskRow({
       onClick={onSelect}
       onKeyDown={(event) => event.key === "Enter" && event.target === event.currentTarget && onSelect()}
       className={cn(
-        "group @container flex h-14 cursor-default items-center gap-3.5 rounded-xl border bg-card px-3.5 outline-none transition-colors",
+        "group @container flex h-14 cursor-default items-center gap-3.5 rounded-xl border bg-card px-3.5 outline-none transition-[border-color,background-color,box-shadow] duration-200 animate-in fade-in slide-in-from-bottom-1",
         selected
           ? "border-primary/60 bg-primary/5 dark:bg-primary/10"
-          : "border-border hover:border-foreground/15 focus-visible:border-primary/60",
+          : "border-border hover:border-foreground/15 hover:shadow-[0_2px_8px_rgb(0_0_0/0.05)] focus-visible:border-primary/60",
       )}
     >
       <StatusButton
         status={task.status}
+        completedAt={task.completedAt}
         onChange={(status) => updateTask(task.id, { status })}
         className="[&_svg]:size-5"
       />
       <span
         className={cn(
-          "min-w-0 truncate text-[13.5px] font-medium",
+          "min-w-0 truncate text-[13.5px] font-medium transition-colors duration-300",
           done && "text-muted-foreground line-through decoration-muted-foreground/50",
         )}
       >
@@ -190,6 +195,8 @@ function TaskRow({
       {task.description.trim() && <FileText className="size-3.5 shrink-0 text-muted-foreground/60" />}
 
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        {!done && <PriorityChip priority={task.priority} className="hidden @lg:inline-flex" />}
+        {!done && <PriorityChip priority={task.priority} compact className="@lg:hidden" />}
         <div className="hidden items-center gap-1.5 @xl:flex">
           {tags.slice(0, 2).map((tag) => (
             <TagChip key={tag.id} tag={tag} />
@@ -200,24 +207,10 @@ function TaskRow({
           <Clock className="size-3" />
           {formatRelative(task.updatedAt)}
         </span>
-        <TaskMenu task={task} className="ml-1 opacity-0 group-hover:opacity-100 data-popup-open:opacity-100" />
-        <button
-          type="button"
-          title={action.label}
-          aria-label={action.label}
-          onClick={(event) => {
-            event.stopPropagation()
-            updateTask(task.id, { status: action.next })
-          }}
-          className={cn(
-            "flex size-8 items-center justify-center rounded-full transition-colors",
-            task.status === "in_progress"
-              ? "bg-primary/14 text-primary hover:bg-primary/22"
-              : "border border-border text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
-        >
-          {action.icon}
-        </button>
+        <TaskMenu
+          task={task}
+          className="ml-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-popup-open:opacity-100"
+        />
       </div>
     </div>
   )
@@ -229,40 +222,62 @@ function Group({
   tagsById,
   selectedId,
   onSelect,
+  defaultOpen = status !== "done",
 }: {
   status: Status
   tasks: Task[]
   tagsById: Map<number, Tag>
   selectedId: number | null
   onSelect: (id: number) => void
+  defaultOpen?: boolean
 }) {
-  const [open, setOpen] = useState(status !== "done")
+  const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <section className="flex flex-col gap-2">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="group/header flex h-8 items-center gap-2 text-left">
-        <span className="text-[13.5px] font-semibold">{STATUS_LABEL[status]}</span>
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground/7 px-1.5 text-[11px] font-medium text-muted-foreground tabular-nums dark:bg-white/8">
-          {tasks.length}
-        </span>
-        <span className="h-px flex-1 bg-border" />
-        <ChevronRight
-          className={cn(
-            "size-3.5 text-muted-foreground opacity-60 transition-transform group-hover/header:opacity-100",
-            open && "rotate-90",
-          )}
-        />
-      </button>
-      {open &&
-        tasks.map((task) => (
-          <TaskRow
-            key={task.id}
-            task={task}
-            tags={task.tagIds.flatMap((id) => tagsById.get(id) ?? [])}
-            selected={task.id === selectedId}
-            onSelect={() => onSelect(task.id)}
+    <section className="flex flex-col">
+      <div className="group/header flex h-8 items-center gap-2">
+        <button type="button" onClick={() => setOpen((value) => !value)} className="flex h-full flex-1 items-center gap-2 text-left">
+          <span className="text-[13.5px] font-semibold">{STATUS_LABEL[status]}</span>
+          <span
+            key={tasks.length}
+            className="flex h-5 min-w-5 animate-pop items-center justify-center rounded-full bg-foreground/7 px-1.5 text-[11px] font-medium text-muted-foreground tabular-nums dark:bg-white/8"
+          >
+            {tasks.length}
+          </span>
+          <span className="h-px flex-1 bg-border" />
+          <ChevronRight
+            className={cn(
+              "size-3.5 text-muted-foreground opacity-60 transition-[transform,opacity] duration-200 group-hover/header:opacity-100",
+              open && "rotate-90",
+            )}
           />
-        ))}
+        </button>
+        {status === "done" && (
+          <ClearDoneButton
+            tasks={tasks}
+            className="opacity-0 transition-opacity duration-150 group-hover/header:opacity-100 focus-visible:opacity-100"
+          />
+        )}
+      </div>
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-250 ease-out",
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div className="-mx-2 -mb-2 flex min-h-0 flex-col gap-2 overflow-hidden px-2 pb-2" inert={!open}>
+          <div className="h-0" />
+          {tasks.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              tags={task.tagIds.flatMap((id) => tagsById.get(id) ?? [])}
+              selected={task.id === selectedId}
+              onSelect={() => onSelect(task.id)}
+            />
+          ))}
+        </div>
+      </div>
     </section>
   )
 }
@@ -288,11 +303,19 @@ export function ListView({
 }) {
   const [chipTag, setChipTag] = useState<number | null>(null)
   const tags = [...tagsById.values()]
+  // The sidebar's Done card shows only completed tasks, so its group starts expanded there.
+  const onlyDone = statuses.length === 1 && statuses[0] === "done"
   const activeChip = showTagFilter && chipTag !== null && tagsById.has(chipTag) ? chipTag : null
   const shown = activeChip === null ? tasks : tasks.filter((task) => task.tagIds.includes(activeChip))
   const open = shown.filter((task) => task.status !== "done").length
+  const progress = shown.length === 0 ? 0 : ((shown.length - open) / shown.length) * 100
   const groups = GROUP_ORDER.filter((status) => statuses.includes(status))
-    .map((status) => ({ status, tasks: shown.filter((task) => task.status === status) }))
+    .map((status) => ({
+      status,
+      tasks: shown
+        .filter((task) => task.status === status)
+        .sort((a, b) => (status === "done" ? 0 : PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority])),
+    }))
     .filter((group) => group.tasks.length > 0)
 
   return (
@@ -309,6 +332,15 @@ export function ListView({
             <span className="tabular-nums">{shown.length}</span> total
           </p>
         </header>
+        <div
+          className="-mt-2 h-1 overflow-hidden rounded-full bg-foreground/6 dark:bg-white/8"
+          title={`${Math.round(progress)}% done`}
+        >
+          <div
+            className="h-full rounded-full bg-linear-to-r from-[#34c759] to-[#30d158] transition-[width] duration-700 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
 
         <Composer key={`${defaults.status}-${defaults.tagIds?.[0]}`} defaults={defaults} />
 
@@ -317,8 +349,9 @@ export function ListView({
         <div className="flex flex-col gap-6">
           {groups.map((group) => (
             <Group
-              key={group.status}
+              key={onlyDone ? "done-only" : group.status}
               status={group.status}
+              defaultOpen={onlyDone || undefined}
               tasks={group.tasks}
               tagsById={tagsById}
               selectedId={selectedId}
@@ -326,7 +359,7 @@ export function ListView({
             />
           ))}
           {groups.length === 0 && (
-            <div className="flex flex-col items-center gap-1 py-16 text-center">
+            <div className="flex flex-col items-center gap-1 py-16 text-center animate-in fade-in zoom-in-95 duration-300">
               <p className="text-[14px] font-semibold">Nothing here yet</p>
               <p className="text-[12.5px] text-muted-foreground">Add a task above to get started.</p>
             </div>

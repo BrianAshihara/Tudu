@@ -3,11 +3,13 @@ import { getCurrentWindow } from "@tauri-apps/api/window"
 import { Copy, Minus, Square, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useTudu } from "@/store/tudu-store"
 
 const buttonClass =
   "flex h-full w-11.5 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 
 export function WindowControls({ className }: { className?: string }) {
+  const { flushDeletes } = useTudu()
   const [maximized, setMaximized] = useState(false)
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export function WindowControls({ className }: { className?: string }) {
         type="button"
         aria-label="Close"
         title="Close"
-        onClick={() => getCurrentWindow().close()}
+        onClick={() => flushDeletes().finally(() => getCurrentWindow().close())}
         className={cn(buttonClass, "hover:bg-[#e81123] hover:text-white")}
       >
         <X className="size-4" strokeWidth={1.5} />

@@ -1,11 +1,12 @@
 import { useState } from "react"
 
+import { PriorityIcon } from "@/components/priority"
 import { SegmentedControl } from "@/components/segmented-control"
 import { StatusIcon } from "@/components/status-icon"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { STATUS_LABEL } from "@/lib/meta"
-import { STATUSES, type Status, type Task } from "@/lib/types"
+import { PRIORITY_LABEL, STATUS_LABEL } from "@/lib/meta"
+import { PRIORITIES, STATUSES, type Priority, type Status, type Task } from "@/lib/types"
 import { useTudu } from "@/store/tudu-store"
 
 function NewTaskForm({
@@ -18,12 +19,13 @@ function NewTaskForm({
   const { createTask } = useTudu()
   const [title, setTitle] = useState("")
   const [status, setStatus] = useState<Status>(defaults.status ?? "todo")
+  const [priority, setPriority] = useState<Priority>("normal")
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const trimmed = title.trim()
     if (!trimmed) return
-    const task = await createTask({ title: trimmed, status, tagIds: defaults.tagIds })
+    const task = await createTask({ title: trimmed, status, priority, tagIds: defaults.tagIds })
     if (task) onCreated(task)
   }
 
@@ -49,6 +51,20 @@ function NewTaskForm({
             <>
               <StatusIcon status={value} className="size-3" />
               {STATUS_LABEL[value]}
+            </>
+          ),
+        }))}
+      />
+      <SegmentedControl
+        value={priority}
+        onChange={setPriority}
+        className="self-start"
+        options={PRIORITIES.map((value) => ({
+          value,
+          label: (
+            <>
+              <PriorityIcon priority={value} className="size-3" />
+              {PRIORITY_LABEL[value]}
             </>
           ),
         }))}

@@ -4,7 +4,7 @@ use std::path::Path;
 use rusqlite::{params, Connection, ErrorCode, OptionalExtension, Row};
 
 use crate::error::{Error, Result};
-use crate::models::{NewTask, Status, Tag, TagInput, Task, TaskPatch};
+use crate::models::{NewTask, Priority, Status, Tag, TagInput, Task, TaskPatch};
 
 const NOW: &str = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
 
@@ -35,10 +35,13 @@ CREATE TABLE task_tags (
     tag_id  INTEGER NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
     PRIMARY KEY (task_id, tag_id)
 );
+"#, r#"
+ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'
+    CHECK (priority IN ('low', 'normal', 'high', 'emergency'));
 "#];
 
 const TASK_COLUMNS: &str =
-    "id, title, description, status, position, created_at, updated_at, completed_at";
+    "id, title, description, status, position, created_at, updated_at, completed_at, priority";
 
 pub fn open(path: &Path) -> Result<Connection> {
     let conn = Connection::open(path)?;
@@ -63,6 +66,7 @@ fn map_task(row: &Row) -> rusqlite::Result<Task> {
         title: row.get(1)?,
         description: row.get(2)?,
         status: row.get(3)?,
+        priority: row.get(8)?,
         position: row.get(4)?,
         tag_ids: Vec::new(),
         created_at: row.get(5)?,
@@ -92,10 +96,17 @@ fn clean_tag(input: &TagInput) -> Result<(String, String)> {
     if name.is_empty() {
         return Err(Error::Validation("Tag name cannot be empty".into()));
     }
-    if !TAG_COLORS.contains(&input.color.as_str()) {
+    let color = input.color.trim().to_lowercase();
+    if !TAG_COLORS.contains(&color.as_str()) && !is_hex_color(&color) {
         return Err(Error::Validation(format!("Invalid tag color: {}", input.color)));
     }
-    Ok((name.to_string(), input.color.clone()))
+    Ok((name.to_string(), color))
+}
+
+fn is_hex_color(color: &str) -> bool {
+    color.len() == 7
+        && color.starts_with('#')
+        && color[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
 fn map_unique(err: rusqlite::Error, message: &str) -> Error {
@@ -167,15 +178,16 @@ pub fn create_task(conn: &mut Connection, input: NewTask) -> Result<Task> {
     let title = clean_title(&input.title)?;
     let status = input.status.unwrap_or(Status::Todo);
     let description = input.description.unwrap_or_default();
+    let priority = input.priority.unwrap_or_default();
 
     let tx = conn.transaction()?;
     let position = next_position(&tx, status)?;
     tx.execute(
         &format!(
-            "INSERT INTO tasks (title, description, status, position, completed_at)
-             VALUES (?1, ?2, ?3, ?4, CASE WHEN ?3 = 'done' THEN {NOW} END)"
+            "INSERT INTO tasks (title, description, status, priority, position, completed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, CASE WHEN ?3 = 'done' THEN {NOW} END)"
         ),
-        params![title, description, status, position],
+        params![title, description, status, priority, position],
     )?;
     let id = tx.last_insert_rowid();
     if let Some(tag_ids) = input.tag_ids {
@@ -192,6 +204,7 @@ pub fn update_task(conn: &Connection, id: i64, patch: TaskPatch) -> Result<Task>
         None => current.title,
     };
     let description = patch.description.unwrap_or(current.description);
+    let priority = patch.priority.unwrap_or(current.priority);
     let (status, position) = match patch.status {
         Some(status) if status != current.status => (status, next_position(conn, status)?),
         _ => (current.status, current.position),
@@ -200,11 +213,12 @@ pub fn update_task(conn: &Connection, id: i64, patch: TaskPatch) -> Result<Task>
     conn.execute(
         &format!(
             "UPDATE tasks
-             SET title = ?1, description = ?2, status = ?3, position = ?4, updated_at = {NOW},
+             SET title = ?1, description = ?2, status = ?3, position = ?4, priority = ?5,
+                 updated_at = {NOW},
                  completed_at = CASE WHEN ?3 = 'done' THEN COALESCE(completed_at, {NOW}) END
-             WHERE id = ?5"
+             WHERE id = ?6"
         ),
-        params![title, description, status, position, id],
+        params![title, description, status, position, priority, id],
     )?;
     get_task(conn, id)
 }
@@ -230,6 +244,19 @@ pub fn delete_task(conn: &Connection, id: i64) -> Result<()> {
         return Err(Error::NotFound);
     }
     Ok(())
+}
+
+pub fn delete_tasks(conn: &mut Connection, ids: &[i64]) -> Result<usize> {
+    let tx = conn.transaction()?;
+    let mut deleted = 0;
+    {
+        let mut stmt = tx.prepare("DELETE FROM tasks WHERE id = ?1")?;
+        for id in ids {
+            deleted += stmt.execute([id])?;
+        }
+    }
+    tx.commit()?;
+    Ok(deleted)
 }
 
 pub fn set_task_tags(conn: &mut Connection, task_id: i64, tag_ids: &[i64]) -> Result<Task> {
@@ -306,6 +333,7 @@ mod tests {
             title: title.into(),
             description: None,
             status: None,
+            priority: None,
             tag_ids: None,
         }
     }
@@ -366,6 +394,46 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM task_tags", [], |row| row.get(0))
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn tasks_default_to_normal_priority() {
+        let mut conn = setup();
+        let task = create_task(&mut conn, new_task("Task")).unwrap();
+        assert_eq!(task.priority, Priority::Normal);
+
+        let patch = TaskPatch {
+            priority: Some(Priority::Emergency),
+            ..Default::default()
+        };
+        let urgent = update_task(&conn, task.id, patch).unwrap();
+        assert_eq!(urgent.priority, Priority::Emergency);
+        assert_eq!(urgent.title, "Task");
+    }
+
+    #[test]
+    fn accepts_custom_hex_tag_colors() {
+        let conn = setup();
+        let custom = create_tag(&conn, tag("Custom", "#1A2B3C")).unwrap();
+        assert_eq!(custom.color, "#1a2b3c");
+        for bad in ["#12345", "#gggggg", "pink", "123456"] {
+            assert!(matches!(
+                create_tag(&conn, tag(bad, bad)),
+                Err(Error::Validation(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn deletes_several_tasks_at_once() {
+        let mut conn = setup();
+        let a = create_task(&mut conn, new_task("A")).unwrap();
+        let b = create_task(&mut conn, new_task("B")).unwrap();
+        let c = create_task(&mut conn, new_task("C")).unwrap();
+
+        assert_eq!(delete_tasks(&mut conn, &[a.id, c.id, 999]).unwrap(), 2);
+        let left: Vec<i64> = list_tasks(&conn).unwrap().iter().map(|t| t.id).collect();
+        assert_eq!(left, vec![b.id]);
     }
 
     #[test]

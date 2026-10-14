@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { Maximize2, Minimize2, PanelRightClose, Trash2 } from "lucide-react"
 
-import { ConfirmDialog } from "@/components/confirm-dialog"
 import { MarkdownEditor } from "@/components/markdown-editor"
+import { PriorityPicker } from "@/components/priority"
 import { SegmentedControl } from "@/components/segmented-control"
 import { StatusIcon } from "@/components/status-icon"
 import { TagPicker } from "@/components/tag-picker"
@@ -67,7 +67,6 @@ export function TaskDetail({
   onClose: () => void
 }) {
   const { updateTask, deleteTask } = useTudu()
-  const [confirming, setConfirming] = useState(false)
 
   return (
     <aside
@@ -88,7 +87,10 @@ export function TaskDetail({
         <div data-tauri-drag-region className="h-full flex-1" />
         <button
           type="button"
-          onClick={() => setConfirming(true)}
+          onClick={() => {
+            deleteTask(task.id)
+            onClose()
+          }}
           title="Delete task"
           className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
         >
@@ -106,7 +108,12 @@ export function TaskDetail({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className={cn("flex flex-col gap-5 px-6 pt-1 pb-10", expanded && "mx-auto w-full max-w-3xl")}>
+        <div
+          className={cn(
+            "flex flex-col gap-5 px-6 pt-1 pb-10 animate-in fade-in slide-in-from-bottom-1 duration-200",
+            expanded && "mx-auto w-full max-w-3xl",
+          )}
+        >
           <TitleField key={`${task.id}-${task.title}`} task={task} />
 
           <div className="grid grid-cols-[88px_1fr] gap-x-3 gap-y-1.5">
@@ -123,6 +130,13 @@ export function TaskDetail({
                     </>
                   ),
                 }))}
+              />
+            </Property>
+            <Property label="Priority">
+              <PriorityPicker
+                value={task.priority}
+                onChange={(priority) => updateTask(task.id, { priority })}
+                className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium transition-colors hover:bg-accent data-popup-open:bg-accent -ml-2"
               />
             </Property>
             <Property label="Tags">
@@ -150,17 +164,6 @@ export function TaskDetail({
           />
         </div>
       </div>
-
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title="Delete this task?"
-        description={`"${task.title}" and all of its notes will be permanently removed.`}
-        onConfirm={() => {
-          deleteTask(task.id)
-          onClose()
-        }}
-      />
     </aside>
   )
 }

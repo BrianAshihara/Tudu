@@ -37,13 +37,17 @@ Não é preciso instalar mais nada.
 
 ## Funcionalidades
 
-- Criar, editar e excluir tarefas
+- Criar, editar e excluir tarefas, com opção de desfazer a exclusão (`Ctrl/Cmd + Z`)
 - Três status: A fazer, Em andamento e Concluído, com registro da data de conclusão
 - Visão em lista agrupada por status e quadro Kanban com arrastar e soltar
 - Painel de detalhes da tarefa, que também pode ser expandido para tela cheia
 - Notas em Markdown com pré-visualização (títulos, links, código, checklists)
+- Quatro prioridades: Baixa, Normal, Alta e Emergência, com a lista ordenada e filtrável por prioridade
+- Limpar todas as tarefas concluídas de uma vez
 - Tags coloridas para agrupar tarefas, com filtro pela barra lateral e por chips na lista
-- Ações rápidas para iniciar, pausar ou reabrir uma tarefa
+- Cor da tag editável (clique na bolinha da tag), com 7 cores prontas ou uma cor personalizada
+- Animações suaves, respeitando a opção "reduzir movimento" do sistema
+- Clique no círculo de status para mover a tarefa para qualquer status
 - Busca por título, notas e tags
 - Temas claro, escuro e do sistema
 - Atalhos de teclado: `Ctrl/Cmd + N` nova tarefa, `Ctrl/Cmd + F` buscar, `Esc` fechar painel

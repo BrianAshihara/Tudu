@@ -3,22 +3,19 @@ import { Check, Circle, CircleDashed, Inbox, Monitor, Moon, MoreHorizontal, Plus
 
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { SegmentedControl } from "@/components/segmented-control"
+import { TagColorPicker } from "@/components/tag-color-picker"
 import { TagDot } from "@/components/tag-pill"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { Theme } from "@/hooks/use-theme"
 import { STATUS_LABEL } from "@/lib/meta"
-import { STATUSES, TAG_COLORS, type Filter, type Tag, type TagColor } from "@/lib/types"
+import { STATUSES, TAG_COLORS, type Filter, type Tag } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { useTudu } from "@/store/tudu-store"
 
@@ -55,7 +52,7 @@ function SmartCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col gap-2 rounded-[10px] p-2 text-left transition-colors",
+        "flex flex-col gap-2 rounded-[10px] p-2 text-left transition-[background-color,color,transform] duration-200 active:scale-[0.97]",
         active
           ? "bg-primary text-primary-foreground"
           : "bg-black/5 hover:bg-black/8 dark:bg-white/7 dark:hover:bg-white/10",
@@ -64,13 +61,15 @@ function SmartCard({
       <div className="flex items-start justify-between">
         <span
           className={cn(
-            "flex size-6 items-center justify-center rounded-full text-white",
+            "flex size-6 items-center justify-center rounded-full text-white transition-colors duration-200",
             active ? "bg-white/25" : tint,
           )}
         >
           {icon}
         </span>
-        <span className="text-[19px] leading-6 font-semibold tabular-nums">{count}</span>
+        <span key={count} className="text-[19px] leading-6 font-semibold tabular-nums animate-in fade-in duration-300">
+          {count}
+        </span>
       </div>
       <span className={cn("text-[12px] font-medium", active ? "text-white/90" : "text-muted-foreground")}>
         {label}
@@ -94,6 +93,7 @@ function TagRow({
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(tag.name)
   const [confirming, setConfirming] = useState(false)
+  const [pickingColor, setPickingColor] = useState(false)
 
   const commit = () => {
     setEditing(false)
@@ -105,11 +105,22 @@ function TagRow({
   return (
     <div
       className={cn(
-        "group flex h-7 items-center gap-2 rounded-md px-2 transition-colors",
+        "group flex h-7 items-center gap-2 rounded-md px-2 transition-colors animate-in fade-in slide-in-from-left-1 duration-200",
         active ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/60",
       )}
     >
-      <TagDot tag={tag} />
+      <Popover open={pickingColor} onOpenChange={setPickingColor}>
+        <PopoverTrigger
+          aria-label="Change color"
+          title="Change color"
+          className="-m-1 flex size-4.5 shrink-0 items-center justify-center rounded-full transition-transform duration-150 hover:scale-125"
+        >
+          <TagDot tag={tag} />
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto p-2.5">
+          <TagColorPicker value={tag.color} onChange={(color) => updateTag(tag.id, { name: tag.name, color })} />
+        </PopoverContent>
+      </Popover>
       {editing ? (
         <input
           autoFocus
@@ -140,22 +151,7 @@ function TagRow({
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-44" align="end">
           <DropdownMenuItem onClick={() => setEditing(true)}>Rename</DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Color</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-36">
-              <DropdownMenuRadioGroup
-                value={tag.color}
-                onValueChange={(color) => updateTag(tag.id, { name: tag.name, color: color as TagColor })}
-              >
-                {TAG_COLORS.map((color) => (
-                  <DropdownMenuRadioItem key={color} value={color} className="capitalize">
-                    <TagDot tag={{ color }} />
-                    {color}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          <DropdownMenuItem onClick={() => setPickingColor(true)}>Change color</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={() => setConfirming(true)}>
             Delete

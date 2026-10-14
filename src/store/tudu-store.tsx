@@ -3,6 +3,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api } from "@/lib/api"
 import type { NewTask, Status, Tag, TagInput, Task, TaskPatch } from "@/lib/types"
 
+export const UNDO_DELAY = 5000
+
+interface PendingDelete {
+  tasks: Task[]
+  timer: ReturnType<typeof setTimeout>
+}
+
 interface TuduStore {
   tasks: Task[]
   tags: Tag[]
@@ -12,7 +19,12 @@ interface TuduStore {
   createTask: (input: NewTask) => Promise<Task | undefined>
   updateTask: (id: number, patch: TaskPatch) => Promise<void>
   moveTask: (id: number, status: Status, position: number) => Promise<void>
-  deleteTask: (id: number) => Promise<void>
+  deleteTask: (id: number) => void
+  deleteTasks: (ids: number[]) => void
+  /** Tasks removed in the last delete that can still be restored, or null. */
+  pendingDelete: { id: number; count: number } | null
+  undoDelete: () => void
+  flushDeletes: () => Promise<void>
   setTaskTags: (id: number, tagIds: number[]) => Promise<void>
   createTag: (input: TagInput) => Promise<Tag | undefined>
   updateTag: (id: number, input: TagInput) => Promise<void>
@@ -38,6 +50,9 @@ export function TuduProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const requests = useRef(new Map<number, number>())
+  const pending = useRef<PendingDelete | null>(null)
+  const deleteCount = useRef(0)
+  const [pendingDelete, setPendingDelete] = useState<TuduStore["pendingDelete"]>(null)
 
   const reload = useCallback(async () => {
     const [nextTasks, nextTags] = await Promise.all([api.listTasks(), api.listTags()])
@@ -125,17 +140,52 @@ export function TuduProvider({ children }: { children: React.ReactNode }) {
     [fail, patchLocal, replaceTask],
   )
 
-  const deleteTask = useCallback(
-    async (id: number) => {
-      setTasks((current) => current.filter((item) => item.id !== id))
-      try {
-        await api.deleteTask(id)
-      } catch (err) {
-        fail(err)
-      }
+  const commitPending = useCallback(async () => {
+    const batch = pending.current
+    if (!batch) return
+    clearTimeout(batch.timer)
+    pending.current = null
+    setPendingDelete(null)
+    try {
+      await api.deleteTasks(batch.tasks.map((task) => task.id))
+    } catch (err) {
+      fail(err)
+    }
+  }, [fail])
+
+  const deleteTasks = useCallback(
+    (ids: number[]) => {
+      if (ids.length === 0) return
+      commitPending()
+      const removed = new Set(ids)
+      const batch = tasks.filter((item) => removed.has(item.id))
+      if (batch.length === 0) return
+      pending.current = { tasks: batch, timer: setTimeout(commitPending, UNDO_DELAY) }
+      deleteCount.current += 1
+      setPendingDelete({ id: deleteCount.current, count: batch.length })
+      setTasks((current) => current.filter((item) => !removed.has(item.id)))
     },
-    [fail],
+    [tasks, commitPending],
   )
+
+  const deleteTask = useCallback((id: number) => deleteTasks([id]), [deleteTasks])
+
+  const undoDelete = useCallback(() => {
+    const batch = pending.current
+    if (!batch) return
+    clearTimeout(batch.timer)
+    pending.current = null
+    setPendingDelete(null)
+    setTasks((current) => [...current, ...batch.tasks])
+  }, [])
+
+  useEffect(() => {
+    const flush = () => {
+      commitPending()
+    }
+    window.addEventListener("beforeunload", flush)
+    return () => window.removeEventListener("beforeunload", flush)
+  }, [commitPending])
 
   const setTaskTags = useCallback(
     async (id: number, tagIds: number[]) => {
@@ -204,12 +254,33 @@ export function TuduProvider({ children }: { children: React.ReactNode }) {
       updateTask,
       moveTask,
       deleteTask,
+      deleteTasks,
+      pendingDelete,
+      undoDelete,
+      flushDeletes: commitPending,
       setTaskTags,
       createTag,
       updateTag,
       deleteTag,
     }),
-    [tasks, tags, loading, error, createTask, updateTask, moveTask, deleteTask, setTaskTags, createTag, updateTag, deleteTag],
+    [
+      tasks,
+      tags,
+      loading,
+      error,
+      createTask,
+      updateTask,
+      moveTask,
+      deleteTask,
+      deleteTasks,
+      pendingDelete,
+      undoDelete,
+      commitPending,
+      setTaskTags,
+      createTag,
+      updateTag,
+      deleteTag,
+    ],
   )
 
   return <TuduContext.Provider value={value}>{children}</TuduContext.Provider>

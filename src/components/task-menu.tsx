@@ -1,7 +1,6 @@
-import { useState } from "react"
 import { MoreHorizontal } from "lucide-react"
 
-import { ConfirmDialog } from "@/components/confirm-dialog"
+import { PriorityIcon, PriorityItems } from "@/components/priority"
 import { StatusIcon } from "@/components/status-icon"
 import {
   DropdownMenu,
@@ -10,16 +9,18 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { STATUS_LABEL } from "@/lib/meta"
-import { STATUSES, type Status, type Task } from "@/lib/types"
+import { PRIORITY_LABEL, STATUS_LABEL } from "@/lib/meta"
+import { STATUSES, type Priority, type Status, type Task } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { useTudu } from "@/store/tudu-store"
 
 export function TaskMenu({ task, className }: { task: Task; className?: string }) {
   const { updateTask, deleteTask } = useTudu()
-  const [confirming, setConfirming] = useState(false)
 
   return (
     <div
@@ -37,7 +38,7 @@ export function TaskMenu({ task, className }: { task: Task; className?: string }
         >
           <MoreHorizontal className="size-4" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-44" align="end">
+        <DropdownMenuContent className="w-48" align="end">
           <DropdownMenuRadioGroup
             value={task.status}
             onValueChange={(status) => updateTask(task.id, { status: status as Status })}
@@ -50,18 +51,26 @@ export function TaskMenu({ task, className }: { task: Task; className?: string }
             ))}
           </DropdownMenuRadioGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={() => setConfirming(true)}>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <PriorityIcon priority={task.priority} className="size-3.5" />
+              Priority: {PRIORITY_LABEL[task.priority]}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-40">
+              <DropdownMenuRadioGroup
+                value={task.priority}
+                onValueChange={(priority) => updateTask(task.id, { priority: priority as Priority })}
+              >
+                <PriorityItems />
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={() => deleteTask(task.id)}>
             Delete task
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title="Delete this task?"
-        description={`"${task.title}" and all of its notes will be permanently removed.`}
-        onConfirm={() => deleteTask(task.id)}
-      />
     </div>
   )
 }

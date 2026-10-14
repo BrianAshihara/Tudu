@@ -1,17 +1,52 @@
-import { TAG_STYLE } from "@/lib/meta"
-import type { Tag } from "@/lib/types"
+import { TAG_STYLE, isPresetColor } from "@/lib/meta"
+import type { Tag, TagColor } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-export function TagDot({ tag, className }: { tag: Pick<Tag, "color">; className?: string }) {
-  return <span className={cn("size-2.5 shrink-0 rounded-full", TAG_STYLE[tag.color].dot, className)} />
+function dotProps(color: TagColor) {
+  return isPresetColor(color)
+    ? { className: TAG_STYLE[color].dot }
+    : { style: { backgroundColor: color } }
+}
+
+function pillProps(color: TagColor) {
+  return isPresetColor(color)
+    ? { className: TAG_STYLE[color].pill }
+    : {
+        style: {
+          backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)`,
+          color: `color-mix(in srgb, ${color} 70%, var(--foreground))`,
+        },
+      }
+}
+
+export function TagDot({
+  tag,
+  className,
+  children,
+}: {
+  tag: Pick<Tag, "color">
+  className?: string
+  children?: React.ReactNode
+}) {
+  const { className: colorClass, style } = dotProps(tag.color)
+  return (
+    <span
+      style={style}
+      className={cn("size-2.5 shrink-0 rounded-full transition-colors duration-300", colorClass, className)}
+    >
+      {children}
+    </span>
+  )
 }
 
 export function TagPill({ tag, className }: { tag: Tag; className?: string }) {
+  const { className: colorClass, style } = pillProps(tag.color)
   return (
     <span
+      style={style}
       className={cn(
-        "inline-flex h-5 max-w-40 items-center rounded-full px-2 text-[11px] leading-none font-medium",
-        TAG_STYLE[tag.color].pill,
+        "inline-flex h-5 max-w-40 items-center rounded-full px-2 text-[11px] leading-none font-medium transition-colors duration-300",
+        colorClass,
         className,
       )}
     >

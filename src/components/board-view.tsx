@@ -21,6 +21,8 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
+import { ClearDoneButton } from "@/components/clear-done-button"
+import { PriorityChip } from "@/components/priority"
 import { QuickAdd } from "@/components/quick-add"
 import { StatusButton, StatusIcon } from "@/components/status-icon"
 import { TagList } from "@/components/tag-pill"
@@ -67,14 +69,16 @@ function TaskCard({
     <div
       onClick={onSelect}
       className={cn(
-        "group flex cursor-default flex-col gap-2 rounded-lg bg-card p-3 shadow-[0_0_0_1px_var(--border),0_1px_2px_rgb(0_0_0/0.06)] transition-shadow",
-        selected && "shadow-[0_0_0_2px_var(--primary)]",
-        overlay && "rotate-2 shadow-[0_0_0_1px_var(--border),0_12px_28px_rgb(0_0_0/0.18)]",
+        "group flex cursor-default flex-col gap-2 rounded-lg bg-card p-3 shadow-[0_0_0_1px_var(--border),0_1px_2px_rgb(0_0_0/0.06)] transition-[box-shadow,transform] duration-200",
+        !overlay && "animate-in fade-in zoom-in-[0.98] hover:-translate-y-px hover:shadow-[0_0_0_1px_var(--border),0_4px_12px_rgb(0_0_0/0.08)]",
+        selected && "shadow-[0_0_0_2px_var(--primary)] hover:shadow-[0_0_0_2px_var(--primary),0_4px_12px_rgb(0_0_0/0.08)]",
+        overlay && "rotate-2 scale-[1.02] shadow-[0_0_0_1px_var(--border),0_12px_28px_rgb(0_0_0/0.18)]",
       )}
     >
       <div className="flex items-start gap-2.5">
         <StatusButton
           status={task.status}
+          completedAt={task.completedAt}
           onChange={(status) => updateTask(task.id, { status })}
           className="mt-px"
         />
@@ -90,6 +94,7 @@ function TaskCard({
       </div>
       {preview && <p className="line-clamp-2 pl-6.5 text-[12px] leading-4 text-muted-foreground">{preview}</p>}
       <div className="flex items-center gap-2 pl-6.5">
+        {!done && <PriorityChip priority={task.priority} compact />}
         <TagList tags={tags} max={2} />
         <span className="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">
           {formatRelative(task.updatedAt)}
@@ -137,14 +142,22 @@ function Column({
   return (
     <div
       className={cn(
-        "flex max-h-full w-72 shrink-0 flex-col rounded-xl bg-muted transition-colors dark:bg-white/4",
+        "flex max-h-full w-72 shrink-0 flex-col rounded-xl bg-muted transition-colors duration-200 dark:bg-white/4",
         isOver && "bg-primary/6 dark:bg-primary/10",
       )}
     >
-      <div className="flex h-10 shrink-0 items-center gap-2 px-3">
+      <div className="group/header flex h-10 shrink-0 items-center gap-2 px-3">
         <StatusIcon status={status} className="size-3.5" />
         <span className="text-[13px] font-semibold">{STATUS_LABEL[status]}</span>
-        <span className="text-[12px] text-muted-foreground tabular-nums">{tasks.length}</span>
+        <span key={tasks.length} className="inline-block animate-pop text-[12px] text-muted-foreground tabular-nums">
+          {tasks.length}
+        </span>
+        {status === "done" && (
+          <ClearDoneButton
+            tasks={tasks}
+            className="-mr-1.5 ml-auto opacity-0 transition-opacity duration-150 group-hover/header:opacity-100 focus-visible:opacity-100"
+          />
+        )}
       </div>
       <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="flex min-h-12 flex-col gap-2 overflow-y-auto px-2 pt-0.5 pb-2">
